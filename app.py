@@ -6,24 +6,16 @@ import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 
-# Load environment variables
 load_dotenv()
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 groq_model = ChatGroq(model="llama-3.1-70b-versatile", api_key=GROQ_API_KEY)
-
-# Streamlit app title
 st.title("Movie Trailer Recommendation System")
-
-# User inputs
 video_url = st.text_input("Enter YouTube video link:")
 user_preferences = st.text_area("Enter your movie preferences:")
-
-# Initialize variables
 frames = []
 descriptions = []
-recommendation = None  # Initialize recommendation variable
+recommendation = None  
 
-# Define functions
 def download_video(url):
     yt = YouTube(url)
     stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
@@ -61,10 +53,9 @@ def recommend_movie(descriptions, user_preferences):
 
 def fetch_cast_and_crew(video_url):
     # Placeholder for actual API that fetches cast/crew info
-    # You can use TMDB API (The Movie Database) for fetching such data
+    # can use TMDB API (The Movie Database) for fetching such data
     return {"cast": ["Actor A", "Actor B"], "crew": ["Director X", "Producer Y"]}
 
-# Main logic
 if st.button("Process Trailer") and video_url:
     st.write("Downloading and processing the video...")
     video_path = download_video(video_url)
