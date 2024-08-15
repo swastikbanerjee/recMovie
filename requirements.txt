@@ -1,0 +1,10 @@
+streamlit 
+pytube 
+opencv-python 
+pillow 
+transformers 
+langchain 
+langchain_community
+langchain_groq
+requests
+python-dotenv
