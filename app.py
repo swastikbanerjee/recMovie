@@ -7,28 +7,32 @@ import torch
 from transformers import AutoFeatureExtractor, AutoModelForImageClassification, AutoTokenizer, AutoModelForCausalLM
 from langchain_groq import ChatGroq
 import requests
-import yt_dlp
+import yt_dlp # used to download the youtube video
 import warnings
 import plotly.graph_objects as go
 import re
 
 warnings.filterwarnings("ignore")
 load_dotenv()
-GROQ_API_KEY = os.getenv('GROQ_API_KEY') 
-TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+# API Keys used
+GROQ_API_KEY = os.getenv('GROQ_API_KEY') # for inferring llama 3.1 70b llm
+TMDB_API_KEY = os.getenv('TMDB_API_KEY') # for getting cast and crew information
 
+# Model Initializations
 groq_model = ChatGroq(model="llama-3.1-70b-versatile", api_key=GROQ_API_KEY) # Initialize the Groq model
-image_model_name = "google/vit-base-patch16-224" # Load the image classification model
+image_model_name = "google/vit-base-patch16-224" # Load the Vision Transformer (ViT) model used for image classification
 feature_extractor = AutoFeatureExtractor.from_pretrained(image_model_name)
 image_model = AutoModelForImageClassification.from_pretrained(image_model_name)
-text_model_name = "gpt2" # Load the text generation model
-tokenizer = AutoTokenizer.from_pretrained(text_model_name)
-text_model = AutoModelForCausalLM.from_pretrained(text_model_name)
+# text_model_name = "gpt2" # Load the autoregressive transformer model used for text generation
+# tokenizer = AutoTokenizer.from_pretrained(text_model_name)
+# text_model = AutoModelForCausalLM.from_pretrained(text_model_name)
 
+# User Input UI
 st.title("CritiqueCue: A Movie Trailer Analysis App") # Streamlit UI
 video_url = st.text_input("Enter YouTube video link:") # User inputs
 user_preferences = st.text_area("What were your favourite movies? List them in comma separated manner: ")
 
+# Dataset Collection Operation
 def download_video(url):
     ydl_opts = {'format': 'best[ext=mp4]', 'outtmpl': '%(title)s.%(ext)s'}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -36,6 +40,7 @@ def download_video(url):
         video_path = ydl.prepare_filename(info)
     return video_path
 
+# Data Preprocessing
 def extract_frames(video_path, interval=5):
     frames = []
     vidcap = cv2.VideoCapture(video_path)
@@ -50,6 +55,7 @@ def extract_frames(video_path, interval=5):
     vidcap.release()
     return frames
 
+# Data Preprocessing - 2
 def analyze_frames(frames):
     descriptions = []
     for frame in frames:
@@ -58,15 +64,18 @@ def analyze_frames(frames):
         descriptions.append(description)
     return descriptions
 
+#Implementation
+# Frame Caption generation
 @torch.no_grad()
 def generate_caption(image):
-    inputs = feature_extractor(images=image, return_tensors="pt")
-    outputs = image_model(**inputs)
+    inputs = feature_extractor(images=image, return_tensors="pt") #The feature_extractor converts the frames into a format suitable for the model.
+    outputs = image_model(**inputs) # The image_model outputs class predictions (e.g., "This image shows a sunset").
     logits = outputs.logits
     predicted_class_idx = logits.argmax(-1).item()  
     predicted_class_label = image_model.config.id2label[predicted_class_idx] 
     return f"This image shows {predicted_class_label}"
 
+# Generating Analysis & Descriptions from processed inputs  
 def process_trailer(video_url, user_preferences):
     video_path = download_video(video_url)
     if video_path is None:
@@ -92,6 +101,7 @@ def process_trailer(video_url, user_preferences):
     os.remove(video_path) # Clean up downloaded video
     return descriptions, analysis
 
+# Dataset Collection - 2
 def fetch_cast_and_crew(video_url):
     with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
         info = ydl.extract_info(video_url, download=False)
@@ -108,6 +118,7 @@ def fetch_cast_and_crew(video_url):
     else:
         return {"cast": [], "crew": []}
 
+# Visualization
 def create_gauge_chart(score):
     fig = go.Figure(go.Indicator(
         mode = "gauge+number",
@@ -132,6 +143,7 @@ def create_gauge_chart(score):
     fig.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=10))
     return fig
 
+# Score Extraction using regex for visulization
 def extract_score(analysis):   
     match = re.search(r'(\d+)(?:\s*\/|\s*out\s*of|\s*/\s*)\s*100', analysis, re.IGNORECASE) # Try to find a score presented as "X out of 100" or similar
     if match:
@@ -145,6 +157,7 @@ def extract_score(analysis):
         return int(match.group(1)) 
     return 0  # Default to 0 if no valid score is found
 
+#Application Code
 if st.button("Process Trailer") and video_url: # Streamlit flow
     try:
         with st.spinner("Processing trailer and generating analysis..."):
@@ -159,7 +172,7 @@ if st.button("Process Trailer") and video_url: # Streamlit flow
             st.write(analysis)     
             st.write("If you have liked these movies, you can definitely go for this one!")          
             score = extract_score(analysis) # Extract score and create gauge chart    
-            st.subheader("Match Score Visualization:")
+            st.subheader("Final Match Score:")
             fig = create_gauge_chart(score)
             st.plotly_chart(fig)
     except Exception as e:
